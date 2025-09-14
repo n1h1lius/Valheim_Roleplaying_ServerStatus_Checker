@@ -1,4 +1,4 @@
 Flask
-a2s
-gunicorn
 flask-cors
+python-a2s
+gunicorn

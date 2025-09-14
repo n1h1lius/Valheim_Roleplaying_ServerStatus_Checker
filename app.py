@@ -1,7 +1,6 @@
 from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
 import a2s
-import socket
 import time
 
 app = Flask(__name__)
@@ -9,11 +8,6 @@ CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 CACHE_TTL = 8.0  # seconds
 _cache = {}
-
-def to_dict(obj):
-    if hasattr(obj, "_asdict"):
-        return obj._asdict()
-    return vars(obj)
 
 def query_valheim(ip, query_port=2457, timeout=5.0):
     key = f"{ip}:{query_port}"
@@ -47,13 +41,13 @@ def query_valheim(ip, query_port=2457, timeout=5.0):
                 "keywords": getattr(info, "keywords", None)
             },
             "players": [
-                {"name": p.name, "duration": round(p.duration), "score": p.score} 
+                {"name": p.name, "duration": round(p.duration), "score": p.score}
                 for p in players
             ],
             "player_count": len(players),
             "ping_ms": round(elapsed, 1),
             "query_port": query_port,
-            "game_port": query_port - 1,  # heuristic: default game port = query_port - 1
+            "game_port": query_port - 1,
             "ip": ip
         })
     except Exception as e:
@@ -61,7 +55,7 @@ def query_valheim(ip, query_port=2457, timeout=5.0):
         err_str = str(e).lower()
         if "timed out" in err_str:
             reason = "timeout"
-        elif isinstance(e, (ConnectionRefusedError, OSError)) or "refused" in err_str:
+        elif "refused" in err_str:
             reason = "connection_refused"
         else:
             reason = "unknown_error"

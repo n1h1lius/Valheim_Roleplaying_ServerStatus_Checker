@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Valheim Server Checker</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      background: #f0f4f8;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      color: #333;
+    }
+
+    header {
+      background: #4a90e2;
+      color: white;
+      padding: 20px;
+      text-align: center;
+      font-size: 24px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,.1);
+      padding: 30px;
+      max-width: 600px;
+      width: 100%;
+      text-align: center;
+      transition: all 0.3s ease;
+    }
+
+    .status {
+      margin: 15px 0;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 16px;
+      transition: background-color .3s;
+    }
+    .up { background:#d4edda; color:#155724; }
+    .down { background:#f8d7da; color:#721c24; }
+    .unknown { background:#fff3cd; color:#856404; }
+
+    button {
+      background:#4a90e2;
+      color:white;
+      border:none;
+      padding:12px 24px;
+      border-radius:8px;
+      cursor:pointer;
+      font-size:16px;
+      margin-top:20px;
+      transition: background 0.3s ease;
+    }
+    button:hover {
+      background:#357ABD;
+    }
+    button.loading {
+      position: relative;
+      pointer-events: none;
+      opacity: 0.7;
+    }
+    button.loading::after {
+      content: "";
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      border: 3px solid rgba(255,255,255,0.6);
+      border-top: 3px solid white;
+      border-radius: 50%;
+      width: 16px;
+      height: 16px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: translateY(-50%) rotate(0deg); }
+      100% { transform: translateY(-50%) rotate(360deg); }
+    }
+
+    footer {
+      background: black;
+      color: #00ff00;
+      font-family: monospace;
+      padding: 15px;
+      font-size: 14px;
+      overflow-x: auto;
+      max-height: 250px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <header id="page-title"></header>
+
+  <main>
+    <div class="card">
+      <div id="server-status" class="status unknown">⏳ Cargando...</div>
+      <div id="server-info"></div>
+      <button id="refresh-btn" onclick="checkStatus()"></button>
+    </div>
+  </main>
+
+  <footer>
+    <div id="raw-json">Esperando datos...</div>
+  </footer>
+
+  <script>
+    // Traducciones
+    const translations = {
+      es: {
+        title: "VALHEIM ROLEPLAYING SERVIDOR",
+        loading: "⏳ Cargando...",
+        update: "Actualizar",
+        up: "✅ Servidor en línea",
+        down: "❌ Servidor no disponible",
+        unknown: "⚠️ Estado desconocido",
+        ip: "Dirección IP",
+        queryPort: "Puerto de consulta",
+        gamePort: "Puerto de juego",
+        players: "Jugadores conectados"
+      },
+      en: {
+        title: "VALHEIM ROLEPLAYING SERVER",
+        loading: "⏳ Loading...",
+        update: "Refresh",
+        up: "✅ Server online",
+        down: "❌ Server unavailable",
+        unknown: "⚠️ Unknown status",
+        ip: "IP Address",
+        queryPort: "Query Port",
+        gamePort: "Game Port",
+        players: "Connected Players"
+      }
+    };
+
+    const lang = navigator.language.startsWith("es") ? "es" : "en";
+    const t = translations[lang];
+
+    document.getElementById("page-title").textContent = t.title;
+    document.getElementById("server-status").textContent = t.loading;
+    document.getElementById("refresh-btn").textContent = t.update;
+
+    async function checkStatus() {
+      const btn = document.getElementById("refresh-btn");
+      const statusEl = document.getElementById("server-status");
+      const infoEl = document.getElementById("server-info");
+      const rawEl = document.getElementById("raw-json");
+
+      btn.classList.add("loading");
+      statusEl.className = "status unknown";
+      statusEl.textContent = t.loading;
+      infoEl.innerHTML = "";
+
+      try {
+        const res = await fetch(`/api/status?ip=159.223.189.211&query_port=2457&game_port=2456`);
+        if (!res.ok) throw new Error("Backend no respondió correctamente");
+        const data = await res.json();
+
+        if (data.ok) {
+          statusEl.className = "status up";
+          statusEl.textContent = t.up;
+        } else {
+          statusEl.className = "status down";
+          statusEl.textContent = t.down;
+        }
+
+        infoEl.innerHTML = `
+          <p><strong>${t.ip}:</strong> ${data.ip}</p>
+          <p><strong>${t.queryPort}:</strong> ${data.query_port}</p>
+          <p><strong>${t.gamePort}:</strong> ${data.game_port}</p>
+          <p><strong>${t.players}:</strong> ${data.player_count || 0}</p>
+        `;
+
+        rawEl.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        statusEl.className = "status down";
+        statusEl.textContent = `${t.down}`;
+        rawEl.textContent = "Error: " + err;
+      } finally {
+        btn.classList.remove("loading");
+      }
+    }
+
+    window.onload = checkStatus;
+  </script>
+</body>
+</html>

@@ -5,60 +5,56 @@ import socket
 import time
 
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "*"}})  # allow all origins for API
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-# Cache TTL to avoid hammering the server
 CACHE_TTL = 8.0  # seconds
 _cache = {}
 
 def to_dict(obj):
-    """Convert NamedTuple or simple object to dict."""
     if hasattr(obj, "_asdict"):
         return obj._asdict()
     return vars(obj)
 
-def check_game_port(ip, port, timeout=2.0):
-    """Check if the game port is open using raw TCP connection."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.settimeout(timeout)
-    try:
-        s.connect((ip, port))
-        return True
-    except:
-        return False
-    finally:
-        s.close()
-
-def query_valheim(ip, query_port=2457, game_port=2456, timeout=5.0):
-    """
-    Query a Valheim server using A2S protocol.
-    Returns a dict with ok, info, players, response_ms, status_reason, game_port_open
-    """
+def query_valheim(ip, query_port=2457, timeout=5.0):
     key = f"{ip}:{query_port}"
     now = time.time()
     cached = _cache.get(key)
     if cached and now - cached["ts"] < CACHE_TTL:
         return cached["res"]
 
-    result = {"ok": False, "status_reason": "unknown_error", "game_port_open": False}
-    start = time.perf_counter()
     addr = (ip, int(query_port))
-
+    result = {"ok": False, "status_reason": "unknown_error"}
+    start = time.perf_counter()
     try:
         info = a2s.info(addr, timeout=timeout)
         players = a2s.players(addr, timeout=timeout)
         elapsed = (time.perf_counter() - start) * 1000.0
-        game_port_open = check_game_port(ip, game_port, timeout=2.0)
 
         result.update({
             "ok": True,
             "status_reason": "responded",
-            "info": to_dict(info),
-            "players": [to_dict(p) for p in players],
+            "info": {
+                "server_name": getattr(info, "server_name", None),
+                "map_name": getattr(info, "map_name", None),
+                "version": getattr(info, "version", None),
+                "server_type": getattr(info, "server_type", None),
+                "max_players": getattr(info, "max_players", None),
+                "password_protected": getattr(info, "password_protected", None),
+                "platform": getattr(info, "platform", None),
+                "steam_id": getattr(info, "steam_id", None),
+                "app_id": getattr(info, "app_id", None),
+                "game_id": getattr(info, "game_id", None),
+                "keywords": getattr(info, "keywords", None)
+            },
+            "players": [
+                {"name": p.name, "duration": round(p.duration), "score": p.score} 
+                for p in players
+            ],
             "player_count": len(players),
-            "server_name": getattr(info, "server_name", None),
-            "response_ms": round(elapsed, 1),
-            "game_port_open": game_port_open
+            "ping_ms": round(elapsed, 1),
+            "query_port": query_port,
+            "game_port": query_port - 1,  # heuristic: default game port = query_port - 1
+            "ip": ip
         })
     except Exception as e:
         elapsed = (time.perf_counter() - start) * 1000.0
@@ -69,14 +65,17 @@ def query_valheim(ip, query_port=2457, game_port=2456, timeout=5.0):
             reason = "connection_refused"
         else:
             reason = "unknown_error"
-        game_port_open = check_game_port(ip, game_port, timeout=2.0)
 
         result.update({
             "ok": False,
             "status_reason": reason,
             "error": str(e),
-            "response_ms": round(elapsed, 1),
-            "game_port_open": game_port_open
+            "ping_ms": round(elapsed, 1),
+            "query_port": query_port,
+            "game_port": query_port - 1,
+            "ip": ip,
+            "players": [],
+            "player_count": 0
         })
 
     _cache[key] = {"ts": now, "res": result}
@@ -84,27 +83,10 @@ def query_valheim(ip, query_port=2457, game_port=2456, timeout=5.0):
 
 @app.route("/api/status")
 def status():
-    """
-    Endpoint: /api/status?ip=159.223.189.211&query_port=2457&game_port=2456&timeout=5
-    Returns JSON with server info.
-    """
     ip = request.args.get("ip", "159.223.189.211")
     query_port = int(request.args.get("query_port", 2457))
-    game_port = int(request.args.get("game_port", 2456))
     timeout = float(request.args.get("timeout", 5.0))
-
-    res = query_valheim(ip, query_port, game_port, timeout)
-
-    # heuristics: if A2S responds and game port is open, server is joinable
-    res["ip"] = ip
-    res["query_port"] = query_port
-    res["game_port"] = game_port
-    res["guess_game_port_open"] = res.get("game_port_open", False)
-    res["status_message"] = (
-        "Server is online and joinable." if res.get("ok") and res.get("game_port_open")
-        else "Server is not responding or not joinable."
-    )
-
+    res = query_valheim(ip, query_port, timeout)
     return jsonify(res)
 
 @app.route("/")
@@ -112,5 +94,4 @@ def home():
     return render_template("index.html")
 
 if __name__ == "__main__":
-    # Development mode. In production use gunicorn/uvicorn + reverse proxy.
     app.run(host="0.0.0.0", port=5000, debug=False)

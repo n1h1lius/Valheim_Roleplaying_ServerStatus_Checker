@@ -1,8 +1,6 @@
 # ⚔️ Valheim RP Server Checker
 
-A **Flask + HTML** app to monitor the status of a Valheim Roleplaying server.  
-It shows real-time server status, players, IP, ports, and technical info — with a clean UI, expandable sections, and raw JSON data.  
-The app automatically adapts to the user's language (**English / Spanish**).
+A **Flask + HTML** app to monitor the status of a Valheim Roleplaying server.  It shows real-time server status, players, IP, ports, and technical info,  with a clean UI, expandable sections, and raw JSON data. 
 
 ---
 

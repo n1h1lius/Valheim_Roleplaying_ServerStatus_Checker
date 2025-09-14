@@ -1,0 +1,4 @@
+Flask
+a2s
+gunicorn
+flask-cors

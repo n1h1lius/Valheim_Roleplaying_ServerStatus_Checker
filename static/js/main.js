@@ -1,8 +1,11 @@
 const API_BASE = '';
 const SERVER_IP = '159.223.189.211';
 const QUERY_PORT = 2457;
+const REFRESH_INTERVAL = 30000; // 30s, cámbialo si quieres
 
-// Toggle section ahora apunta a "-container" si existe
+let lastServerStatus = null; // null = desconocido, true = online, false = offline
+
+// Toggle section
 function toggleSection(id) {
   const section = document.getElementById(id + "-container") || document.getElementById(id);
   if (section.style.display === "none") {
@@ -66,9 +69,36 @@ async function fetchStatus() {
 
     document.getElementById('raw-json').textContent = JSON.stringify(data, null, 2);
 
+    // 🚨 Notificación + sonido si el server estaba caído y ahora vuelve
+    if (lastServerStatus === false && isOnline === true) {
+      triggerNotification();
+    }
+
+    lastServerStatus = isOnline;
+
   } catch(err) {
     console.error(err);
-    alert('Error fetching server status.');
+  }
+}
+
+// 🚨 Notificación + sonido
+function triggerNotification() {
+  if (Notification.permission === "granted") {
+    new Notification("✅ Valheim Server is ONLINE!", {
+      body: "The server is back up and running!",
+      icon: "/static/icon.png" // opcional, pon tu icono aquí
+    });
+  }
+  // 🔊 Sonido
+  const audio = new Audio("/static/notify.mp3"); // coloca el archivo en static/
+  audio.play().catch(err => console.warn("Sound play blocked:", err));
+}
+
+function requestNotificationPermission() {
+  if ("Notification" in window) {
+    Notification.requestPermission().then(permission => {
+      console.log("Notification permission:", permission);
+    });
   }
 }
 
@@ -99,4 +129,9 @@ function initUI() {
   }
 }
 
-window.onload = () => { initUI(); fetchStatus(); };
+window.onload = () => {
+  initUI();
+  requestNotificationPermission();
+  fetchStatus();
+  setInterval(fetchStatus, REFRESH_INTERVAL); // 🔄 auto-refresh
+};
